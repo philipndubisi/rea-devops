@@ -5,7 +5,14 @@
   become: yes
   
   vars_files:
-    - secrets/vault.yml
+    - group_vars/all/all.yml
+    - group_vars/all/vault.yml
+    
+  vars:
+    env_name: "{{ group_names[0] }}"
+    mongodb_database_name: "{{ mongodb_credentials[env_name].database | default('seisho_db') }}"
+    mongodb_username: "{{ mongodb_credentials[env_name].username | default('seisho') }}"
+    mongodb_password: "{{ mongodb_credentials[env_name].password | default('NewPass1234') }}"
     
   vars_prompt:
     - name: vault_password
@@ -20,10 +27,7 @@
       
     - name: Display current environment
       debug:
-        msg: "Deploying to {{ current_env | upper }} environment on {{ inventory_hostname }}"
-
-    - name: Load vault variables
-      include_vars: "group_vars/all/vault.yml"
+        msg: "Deploying to {{ env_name | upper }} environment on {{ inventory_hostname }}"
 
     # Task 2.2: Dependency Management & Cloning
     - name: Update apt cache
@@ -152,6 +156,7 @@
         group: "{{ ansible_user }}"
         mode: '0600'
       no_log: true
+      when: deployment_private_key is defined and deployment_private_key != ''
 
     - name: Add GitHub to known hosts (automatic)
       shell: |
@@ -161,11 +166,42 @@
       args:
         creates: /home/{{ ansible_user }}/.ssh/known_hosts
 
+    - name: Test SSH key format
+      shell: ssh-keygen -l -f /home/{{ ansible_user }}/.ssh/id_rsa
+      become_user: "{{ ansible_user }}"
+      register: ssh_key_test
+      ignore_errors: yes
+      when: deployment_private_key is defined
+
+    - name: Generate public key from private key
+      shell: ssh-keygen -y -f /home/{{ ansible_user }}/.ssh/id_rsa
+      become_user: "{{ ansible_user }}"
+      register: public_key_content
+      ignore_errors: yes
+      when: deployment_private_key is defined and ssh_key_test.rc == 0
+
+    - name: Display SSH key info
+      debug:
+        msg: 
+          - "SSH Key: {{ 'Valid' if ssh_key_test.rc == 0 else 'Invalid - ' + (ssh_key_test.stderr | default('No error message')) }}"
+          - "Public Key (add this to GitHub as deploy key): {{ public_key_content.stdout | default('Not generated') }}"
+
+    - name: Test GitHub SSH connection
+      shell: ssh -T git@github.com -o StrictHostKeyChecking=no
+      become_user: "{{ ansible_user }}"
+      register: github_ssh_test
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Display GitHub SSH test result
+      debug:
+        msg: "GitHub SSH: {{ github_ssh_test.stderr if github_ssh_test.stderr else github_ssh_test.stdout }}"
+
     - name: Clone application repository
       git:
-        repo: "git@github.com:hngprojects/rea-interactive-bible-BE.git"
-        dest: "{{ app_name}}"
-        version: "{{ current_env }}"
+        repo: "{{ repository_url }}"
+        dest: "{{ app_directory }}"
+        version: "{{ git_branch }}"
         force: yes
       become_user: "{{ ansible_user }}"
       environment:
@@ -279,17 +315,17 @@
       shell: pm2 start ecosystem.config.js
       args:
         chdir: "{{ app_directory }}"
-      become_user: "{{ app_user }}"
+      become_user: "{{ ansible_user }}"
 
     - name: Save PM2 configuration
       shell: pm2 save
-      become_user: "{{ app_user }}"
+      become_user: "{{ ansible_user }}"
 
     - name: Setup PM2 startup script
       shell: |
-        pm2 startup systemd -u {{ app_user }} --hp /home/{{ app_user }} | tail -1
+        pm2 startup systemd -u {{ ansible_user }} --hp /home/{{ ansible_user }} | tail -1
       register: pm2_startup_command
-      become_user: "{{ app_user }}"
+      become_user: "{{ ansible_user }}"
 
     - name: Execute PM2 startup command
       shell: "{{ pm2_startup_command.stdout }}"

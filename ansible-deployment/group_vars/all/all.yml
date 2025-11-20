@@ -6,7 +6,7 @@ ansible_user: "ubuntu"
 domain_name: "seisho.emerj.net"
 email: "ceo@seisho.emerj.net"
 app_directory: "/home/{{ ansible_user }}/{{ app_name }}"
-repository_url: "git@github.com:hngprojects/rea-interactive-bible-BE.git"
+repository_url: "git@github.com:okekolawolesunday009/devops-stage-4.git"
 
 # System settings
 nodejs_version: "18"
