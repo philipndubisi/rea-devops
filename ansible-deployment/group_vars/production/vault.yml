@@ -1,11 +1,13 @@
 # This file should be encrypted with ansible-vault
 # Production environment secrets
 # Command: ansible-vault encrypt group_vars/production/vault.yml  
-production_db_password: "production_secure_password_here"
-production_api_key: "production_api_key_here"
-production_jwt_secret: "production_jwt_secret_here"
+production_db_password: "NewPass1234"
+production_api_key: "seisho.emerj.net/api/v1"
+production_jwt_secret: "5b679e54ec414cb25b6a0dac652251f7"
 
 # MongoDB Passwords
-mongodb_admin_password: "prod_mongo_admin_secure_2024!"
-mongodb_app_password: "prod_app_password_secure_2024!"
-mongodb_root_password: "prod_root_password_secure_2024!"
+
+
+mongodb_admin_password: "NewPass1234"
+mongodb_app_password: "NewPass1234"
+mongodb_root_password: "NewPass1234"

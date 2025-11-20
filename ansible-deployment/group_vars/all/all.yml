@@ -1,7 +1,8 @@
 ---
 # Common variables for all environments
-app_name: "rea-bible-app"
+app_name: "rea-interactive-bible-BE"
 app_user: "interactive-bible"
+ansible_user: "ubuntu"
 domain_name:  "seisho.emerj.net"
 email: "ceo@Seisho.emerge.net"
 app_directory: "/opt/bible-app/{{ app_name }}"

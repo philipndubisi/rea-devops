@@ -19,16 +19,16 @@ deployment_private_key: |
 # Database credentials (if needed for backend services)
 vault_database_credentials:
   staging:
-    username: "staging_db_user" 
-    password: "your_staging_db_password_here"
+    username: "seisho" 
+    password: "NewPass1234"
   production:
-    username: "prod_db_user"
-    password: "your_production_db_password_here"
+    username: "seisho"
+    password: "NewPass1234"
 
 # API Keys and Secrets
 vault_api_keys:
-  jwt_secret_staging: "your_staging_jwt_secret_here"
-  jwt_secret_production: "your_production_jwt_secret_here"
+  JWT_ACCESS_SECRET: 612a5eaa4cc985dcb57acdec3785f40c
+  JWT_REFRESH_SECRET: 5b679e54ec414cb25b6a0dac652251f7
   api_key_staging: "your_staging_api_key_here" 
   api_key_production: "your_production_api_key_here"
 
@@ -53,11 +53,11 @@ vault_external_services:
 # MongoDB Configuration
 mongodb_credentials:
   staging:
-    username: "rea_app_staging"
-    password: "staging_mongo_password_here"
-    database: "rea_bible_staging"
+    username: "seisho"
+    password: "NewPass1234"
+    database: "seisho_db"
   production:
-    username: "rea_app_prod"
-    password: "production_mongo_password_here"
-    database: "rea_bible_production"
+    username: "seisho"
+    password: "NewPass1234"
+    database: "seisho_db"
   

@@ -1,11 +1,11 @@
 # This file should be encrypted with ansible-vault
 # Staging environment secrets  
 # Command: ansible-vault encrypt group_vars/staging/vault.yml
-staging_db_password: "staging_secure_password_here"
-staging_api_key: "staging_api_key_here"
-staging_jwt_secret: "staging_jwt_secret_here"
+staging_db_password: "NewPass1234"
+staging_api_key: "api.staging.emerj.net/api/v1"
+staging_jwt_secret: "612a5eaa4cc985dcb57acdec3785f40c"
 
 # MongoDB Passwords
-mongodb_admin_password: "staging_mongo_admin_2024!"
-mongodb_app_password: "staging_app_password_2024!"
-mongodb_root_password: "staging_root_password_2024!"
+mongodb_admin_password: "NewPass1234"
+mongodb_app_password: "NewPass1234"
+mongodb_root_password: "NewPass1234"
