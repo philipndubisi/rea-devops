@@ -1,0 +1,13 @@
+---
+# Handlers for MongoDB service
+
+- name: restart mongod
+  ansible.builtin.systemd:
+    name: mongod
+    state: restarted
+    enabled: yes
+
+- name: reload mongod
+  ansible.builtin.systemd:
+    name: mongod
+    state: reloaded

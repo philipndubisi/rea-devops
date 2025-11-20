@@ -12,9 +12,15 @@
     state: restarted
 
 - name: restart mongod
-  service:
+  ansible.builtin.systemd:
     name: mongod
     state: restarted
+    enabled: yes
+
+- name: reload mongod
+  ansible.builtin.systemd:
+    name: mongod
+    state: reloaded
 
 - name: restart nginx
   service:
