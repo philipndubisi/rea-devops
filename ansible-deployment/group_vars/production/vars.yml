@@ -16,7 +16,7 @@ high_availability: true
 
 # Domain and SSL for production API
 domain_name: "api.seisho.emerj.net"
-server_name: "api.seisho.emerj.net"
+server_name: "seisho.emerj.net"
 api_base_url: "https://api.seisho.emerj.net"
 
 # Database and external services (production)

@@ -14,7 +14,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-ANSIBLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ANSIBLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VAULT_PASSWORD_FILE="${ANSIBLE_DIR}/.vault_password"
 
 # Function to print colored output
@@ -96,7 +96,7 @@ test_connectivity() {
     local env=$1
     print_status "Testing connectivity to $env environment..."
     
-    if ansible all -i "inventory/${env}/host.ini" -m ping --ask-vault-pass; then
+    if ansible all -i "inventory/${env}/hosts" -m ping --ask-vault-pass; then
         print_success "Connectivity test passed for $env"
     else
         print_error "Connectivity test failed for $env"
@@ -111,7 +111,7 @@ deploy() {
     
     # Run the deployment playbook
     if ansible-playbook \
-        -i "inventory/${env}/host.ini" \
+        -i "inventory/${env}/hosts" \
         deploy.yml \
         --ask-vault-pass \
         --diff \
@@ -129,7 +129,7 @@ validate_deployment() {
     print_status "Validating deployment on $env..."
     
     # Get the server IP from inventory
-    local server_ip=$(grep -E "^[^#]*ansible_host=" "inventory/${env}/host.ini" | cut -d'=' -f2 | tr -d ' ')
+    local server_ip=$(grep -E "^[^#]*ansible_host=" "inventory/${env}/hosts" | cut -d'=' -f2 | tr -d ' ')
     
     if [ -z "$server_ip" ]; then
         print_warning "Could not determine server IP for validation"
@@ -147,7 +147,7 @@ validate_deployment() {
     
     # Test if PM2 is running the application
     print_status "Checking PM2 process status..."
-    if ansible all -i "inventory/${env}/host.ini" -m shell -a "pm2 list" --ask-vault-pass; then
+    if ansible all -i "inventory/${env}/hosts" -m shell -a "pm2 list" --ask-vault-pass; then
         print_success "PM2 status check completed"
     else
         print_warning "Could not check PM2 status"
