@@ -1,0 +1,276 @@
+---
+- name: Universal REA DevOps Deployment Playbook
+  hosts: all
+  gather_facts: yes
+  become: yes
+  vars_prompt:
+    - name: vault_password
+      prompt: "Enter Ansible Vault password"
+      private: yes
+
+  tasks:
+    # Task 2.1: Dynamic Environment Configuration
+    - name: Detect environment from inventory group
+      set_fact:
+        current_env: "{{ 'staging' if inventory_hostname in groups['staging'] else 'production' }}"
+      
+    - name: Display current environment
+      debug:
+        msg: "Deploying to {{ current_env | upper }} environment on {{ inventory_hostname }}"
+
+    - name: Load vault variables
+      include_vars: "group_vars/all/vault.yml"
+
+    # Task 2.2: Dependency Management & Cloning
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - nginx
+          - git
+          - curl
+          - build-essential
+          - python3
+          - python3-pip
+          - awscli
+          - certbot
+          - python3-certbot-nginx
+          - software-properties-common
+        state: present
+
+    - name: Add NodeSource repository key
+      apt_key:
+        url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+        state: present
+
+    - name: Add NodeSource repository
+      apt_repository:
+        repo: "deb https://deb.nodesource.com/node_{{ nodejs_version }}.x {{ ansible_distribution_release }} main"
+        state: present
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: Install PM2 globally
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: Install CloudWatch agent dependencies
+      pip:
+        name: 
+          - awscli
+          - boto3
+        state: present
+
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        shell: /bin/bash
+        home: "/home/{{ app_user }}"
+        create_home: yes
+        system: no
+
+    - name: Create application directory
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
+    - name: Create log directory
+      file:
+        path: "{{ app_log_dir }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+
+    - name: Create SSH directory for app user
+      file:
+        path: "/home/{{ app_user }}/.ssh"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0700'
+
+    - name: Deploy private SSH key for repository access
+      copy:
+        content: "{{ deployment_private_key }}"
+        dest: "/home/{{ app_user }}/.ssh/id_rsa"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0600'
+      no_log: true
+
+    - name: Add GitHub to known hosts
+      known_hosts:
+        name: github.com
+        key: "github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7vbZ8nJG8FqPze8d8gHg3vEk/kxPltBs..."
+        path: "/home/{{ app_user }}/.ssh/known_hosts"
+        state: present
+
+    - name: Clone application repository
+      git:
+        repo: "{{ repository_url }}"
+        dest: "{{ app_directory }}"
+        version: "{{ branch_name }}"
+        force: yes
+      become_user: "{{ app_user }}"
+      environment:
+        GIT_SSH_COMMAND: "ssh -i /home/{{ app_user }}/.ssh/id_rsa -o StrictHostKeyChecking=no"
+
+    # Task 2.3: Secrets Injection
+    - name: Copy environment-specific secrets file
+      copy:
+        src: "secrets/{{ env_name }}.env"
+        dest: "{{ app_directory }}/.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0600'
+
+    - name: Install application dependencies
+      npm:
+        path: "{{ app_directory }}"
+        state: present
+      become_user: "{{ app_user }}"
+
+    # Task 2.4: Process Management
+    - name: Create PM2 ecosystem file from template
+      template:
+        src: ecosystem.config.js.j2
+        dest: "{{ app_directory }}/ecosystem.config.js"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0644'
+
+    - name: Stop existing PM2 processes
+      shell: pm2 delete {{ app_name }} || true
+      become_user: "{{ app_user }}"
+      ignore_errors: yes
+
+    - name: Start application with PM2
+      shell: pm2 start ecosystem.config.js
+      args:
+        chdir: "{{ app_directory }}"
+      become_user: "{{ app_user }}"
+
+    - name: Save PM2 configuration
+      shell: pm2 save
+      become_user: "{{ app_user }}"
+
+    - name: Setup PM2 startup script
+      shell: |
+        pm2 startup systemd -u {{ app_user }} --hp /home/{{ app_user }} | tail -1
+      register: pm2_startup_command
+      become_user: "{{ app_user }}"
+
+    - name: Execute PM2 startup command
+      shell: "{{ pm2_startup_command.stdout }}"
+      when: pm2_startup_command.stdout is defined and pm2_startup_command.stdout != ""
+
+    # Task 2.5: Nginx Templating (Reverse Proxy) 
+    - name: Remove default Nginx site
+      file:
+        path: "{{ nginx_sites_enabled }}/default"
+        state: absent
+
+    - name: Configure Nginx site from template
+      template:
+        src: nginx.conf.j2
+        dest: "{{ nginx_sites_available }}/{{ app_name }}_{{ env_name }}"
+        mode: '0644'
+      notify: reload nginx
+
+    - name: Enable Nginx site
+      file:
+        src: "{{ nginx_sites_available }}/{{ app_name }}_{{ env_name }}"
+        dest: "{{ nginx_sites_enabled }}/{{ app_name }}_{{ env_name }}"
+        state: link
+      notify: reload nginx
+
+    # Task 2.6: SSL Certification
+    - name: Check if SSL certificate exists
+      stat:
+        path: "{{ ssl_cert_path }}"
+      register: ssl_cert_check
+
+    - name: Generate SSL certificate with Certbot
+      shell: |
+        certbot --nginx -d {{ domain_name }} \
+        --non-interactive --agree-tos \
+        --email {{ certbot_email }} \
+        --redirect
+      when: not ssl_cert_check.stat.exists
+
+    - name: Set up automatic SSL renewal
+      cron:
+        name: "Certbot renewal"
+        minute: "0"
+        hour: "12"
+        day: "*"
+        month: "*"
+        weekday: "*"
+        job: "certbot renew --quiet --nginx"
+
+    - name: Test SSL renewal
+      shell: certbot renew --dry-run
+      register: certbot_test
+      ignore_errors: yes
+
+    - name: Display SSL renewal test results
+      debug:
+        msg: "SSL renewal test: {{ 'PASSED' if certbot_test.rc == 0 else 'FAILED' }}"
+
+    # CloudWatch Logging Configuration
+    - name: Create CloudWatch log group
+      shell: |
+        aws logs create-log-group --log-group-name "{{ cloudwatch_log_group }}" --region {{ cloudwatch_region }} || true
+      ignore_errors: yes
+
+    - name: Configure CloudWatch agent
+      template:
+        src: cloudwatch-config.json.j2
+        dest: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+        mode: '0644'
+      notify: restart cloudwatch
+
+    - name: Ensure Nginx is running
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Force HTTPS redirection
+      template:
+        src: nginx.conf.j2
+        dest: "{{ nginx_sites_available }}/{{ app_name }}_{{ env_name }}"
+        mode: '0644'
+      notify: reload nginx
+      when: ssl_enabled and force_https
+
+  handlers:
+    - name: reload nginx
+      systemd:
+        name: nginx
+        state: reloaded
+
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+
+    - name: restart cloudwatch
+      systemd:
+        name: amazon-cloudwatch-agent
+        state: restarted
+        enabled: yes

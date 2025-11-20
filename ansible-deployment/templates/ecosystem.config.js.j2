@@ -1,0 +1,123 @@
+// {{ ansible_managed }}
+// PM2 Ecosystem Configuration for {{ app_name }} - {{ env_name }} environment
+// Generated on {{ ansible_date_time.iso8601 }}
+
+module.exports = {
+  apps: [{
+    // Application settings
+    name: '{{ app_name }}',
+    script: './app.js', // Adjust based on your app entry point (server.js, index.js, etc.)
+    cwd: '{{ app_directory }}',
+    
+    // PM2 Cluster settings
+    instances: {{ pm2_instances }},
+    exec_mode: 'cluster',
+    
+    // Environment variables
+    env: {
+      NODE_ENV: '{{ node_env }}',
+      PORT: {{ app_port }},
+      APP_ENV: '{{ env_name }}'
+    },
+    
+    // Logging configuration
+    log_file: '{{ app_log_dir }}/{{ env_name }}.log',
+    out_file: '{{ app_log_dir }}/{{ env_name }}.out.log',
+    error_file: '{{ app_log_dir }}/{{ env_name }}.error.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true,
+    
+    // Performance settings
+    max_memory_restart: '1G',
+    min_uptime: '10s',
+    max_restarts: 10,
+    
+    // Advanced PM2 features
+    autorestart: true,
+    watch: false, // Set to true for development if needed
+    ignore_watch: [
+      'node_modules',
+      'logs',
+      '*.log'
+    ],
+    
+    // Health monitoring
+    health_check_interval: {{ health_check_interval }},
+    
+    // Process management
+    kill_timeout: 5000,
+    listen_timeout: 8000,
+    
+{% if env_name == 'production' %}
+    // Production-specific settings
+    node_args: ['--max-old-space-size=2048'],
+    
+    // Graceful shutdown
+    shutdown_with_message: true,
+    
+    // Source map support for better error tracking
+    source_map_support: true,
+    
+    // Time zone
+    time: true,
+    
+    // Restart delay
+    restart_delay: 4000,
+    
+    // Exponential backoff restart delay
+    exp_backoff_restart_delay: 100
+{% else %}
+    // Staging/Development-specific settings
+    node_args: ['--inspect=0.0.0.0:9229'], // Enable debugger for staging
+    
+    // Faster restarts for development
+    restart_delay: 1000,
+    
+    // More verbose logging for debugging
+    combine_logs: true,
+    
+    // Development-friendly settings
+    watch_delay: 1000,
+    ignore_watch: [
+      'node_modules',
+      'logs',
+      '*.log',
+      '.git'
+    ]
+{% endif %}
+  }],
+
+  // Deployment configuration (if using PM2 deploy)
+  deploy: {
+    {{ env_name }}: {
+      user: '{{ app_user }}',
+      host: '{{ ansible_default_ipv4.address }}',
+      ref: 'origin/{{ branch_name }}',
+      repo: '{{ repository_url }}',
+      path: '{{ app_directory }}',
+      'post-deploy': 'npm install && pm2 reload ecosystem.config.js --env {{ env_name }}',
+      'pre-setup': 'apt update -y; apt install nodejs npm -y'
+    }
+  }
+};
+
+// Environment-specific configurations
+const envConfigs = {
+  staging: {
+    // Staging-specific overrides
+    instances: 1,
+    max_memory_restart: '512M',
+    node_args: ['--inspect=0.0.0.0:9229']
+  },
+  production: {
+    // Production-specific overrides
+    instances: 'max', // Use all available CPU cores
+    max_memory_restart: '1G',
+    node_args: ['--max-old-space-size=2048']
+  }
+};
+
+// Apply environment-specific configurations
+if (envConfigs['{{ env_name }}']) {
+  Object.assign(module.exports.apps[0], envConfigs['{{ env_name }}']);
+}

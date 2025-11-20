@@ -1,0 +1,6 @@
+[production]
+production-server ansible_host=192.168.33.10 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
+
+[production:vars]
+env_group=production
+env_name=production

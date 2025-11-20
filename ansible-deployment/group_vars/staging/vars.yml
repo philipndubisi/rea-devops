@@ -1,0 +1,24 @@
+---
+# Staging environment variables
+env_name: staging
+app_port: 3001
+node_env: development
+branch_name: develop
+debug_enabled: true
+log_level: debug
+pm2_instances: 1
+
+# Domain and SSL
+domain_name: "staging.seisho.emerj.net"
+server_name: "staging.seisho.emerj.net"
+
+# Database and external services (staging)
+db_host: ""
+api_base_url: "https://api.staging.seisho.emerj.net"
+
+# Monitoring
+health_check_interval: 30
+
+# SSL configuration
+ssl_enabled: true
+force_https: true

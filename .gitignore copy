@@ -1,0 +1,55 @@
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Secrets and credentials
+*.env
+*.env.local
+*.env.production
+*.pem
+*.key
+secrets/
+credentials/
+.secrets
+
+# Ansible vault passwords and sensitive files
+.vault_password
+.vault_pass
+ansible-deployment/secrets/
+
+# Backups (too large for git)
+backups/
+*.sql
+*.sql.gz
+*.dump
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Temporary files
+tmp/
+temp/
+*.tmp

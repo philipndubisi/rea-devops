@@ -1,0 +1,24 @@
+---
+# Production environment variables
+env_name: production
+app_port: 3000
+node_env: production
+branch_name: main
+debug_enabled: false
+log_level: error
+pm2_instances: 4
+
+# Domain and SSL
+domain_name: "app.rea-devops.com"
+server_name: "app.rea-devops.com"
+
+# Database and external services (production)
+db_host: "prod-db.amazonaws.com"
+api_base_url: "https://api.rea-devops.com"
+
+# Monitoring
+health_check_interval: 60
+
+# SSL configuration
+ssl_enabled: true
+force_https: true

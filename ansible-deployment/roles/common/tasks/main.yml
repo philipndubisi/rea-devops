@@ -1,0 +1,62 @@
+---
+# Common tasks for all servers
+
+- name: Ensure required packages are installed
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  with_items:
+    - python3-pip
+    - python3-venv
+    - git
+    - ufw
+    - fail2ban
+
+- name: Ensure .ssh directory exists
+  file:
+    path: "{{ ansible_env.HOME }}/.ssh"
+    state: directory
+    mode: '0700'
+    owner: "{{ ansible_user_id }}"
+    group: "{{ ansible_user_gid | default(omit) }}"
+
+- name: Set up SSH key for deployment
+  block:
+    - name: Ensure SSH key is present
+      copy:
+        content: "{{ vault_ssh_private_key }}"
+        dest: "{{ ansible_env.HOME }}/.ssh/id_rsa"
+        mode: '0600'
+        owner: "{{ ansible_user_id }}"
+        group: "{{ ansible_user_gid | default(omit) }}"
+      no_log: true
+      when: vault_ssh_private_key is defined
+
+    - name: Add known hosts
+      known_hosts:
+        path: "{{ ansible_env.HOME }}/.ssh/known_hosts"
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - github.com
+        - gitlab.com
+
+- name: Configure UFW (Uncomplicated Firewall)
+  ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port }}"
+    proto: "{{ item.proto | default('tcp') }}"
+    direction: "{{ item.direction | default('in') }}"
+    state: enabled
+  with_items:
+    - { port: '22', rule: 'allow', comment: 'SSH' }
+    - { port: '80', rule: 'allow', comment: 'HTTP' }
+    - { port: '443', rule: 'allow', comment: 'HTTPS' }
+  notify: reload ufw
+
+- name: Ensure fail2ban is running and enabled
+  service:
+    name: fail2ban
+    state: started
+    enabled: yes

@@ -1,0 +1,9 @@
+# This file should be encrypted with ansible-vault encrypt group_vars/all/vault.yml
+# Command: ansible-vault encrypt group_vars/all/vault.yml
+# PLACEHOLDER - Replace with your actual private SSH deployment key
+deployment_private_key: |
+  -----BEGIN OPENSSH PRIVATE KEY-----
+  # PUT YOUR ACTUAL SSH PRIVATE KEY HERE THEN ENCRYPT THIS FILE
+  # This is just a placeholder
+  -----END OPENSSH PRIVATE KEY-----
+  
