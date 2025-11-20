@@ -46,5 +46,7 @@ operationProfiling:
   mode: {{ mongodb_profiling_mode | default('slowOp') }}
 
 # Set parameter for {{ env_name }} environment
+{% if env_name == 'staging' %}
 setParameter:
-  enableLocalhostAuthBypass: {{ 'true' if env_name == 'staging' else 'false' }}
+  enableLocalhostAuthBypass: true
+{% endif %}
