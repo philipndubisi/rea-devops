@@ -10,3 +10,13 @@
   service:
     name: fail2ban
     state: restarted
+
+- name: restart mongod
+  service:
+    name: mongod
+    state: restarted
+
+- name: restart nginx
+  service:
+    name: nginx
+    state: restarted

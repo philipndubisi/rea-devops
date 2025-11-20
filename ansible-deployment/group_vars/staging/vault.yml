@@ -4,3 +4,8 @@
 staging_db_password: "staging_secure_password_here"
 staging_api_key: "staging_api_key_here"
 staging_jwt_secret: "staging_jwt_secret_here"
+
+# MongoDB Passwords
+mongodb_admin_password: "staging_mongo_admin_2024!"
+mongodb_app_password: "staging_app_password_2024!"
+mongodb_root_password: "staging_root_password_2024!"

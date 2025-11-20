@@ -33,15 +33,92 @@
           - nginx
           - git
           - curl
+          - awscli
           - build-essential
           - python3
           - python3-pip
-          - awscli
           - certbot
           - python3-certbot-nginx
           - software-properties-common
+          - gnupg
+          - apt-transport-https
+          - ca-certificates
+          - lsb-release
         state: present
 
+    # MongoDB Installation
+    - name: Import MongoDB public GPG key
+      apt_key:
+        url: https://www.mongodb.org/static/pgp/server-7.0.asc
+        state: present
+
+    - name: Add MongoDB repository
+      apt_repository:
+        repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu {{ ansible_distribution_release }}/mongodb-org/7.0 multiverse"
+        state: present
+        update_cache: yes
+
+    - name: Install MongoDB
+      apt:
+        name:
+          - mongodb-org
+          - mongodb-org-server
+          - mongodb-org-shell
+          - mongodb-org-mongos
+          - mongodb-org-tools
+        state: present
+        update_cache: yes
+
+    - name: Create MongoDB data directory
+      file:
+        path: /var/lib/mongodb
+        state: directory
+        owner: mongodb
+        group: mongodb
+        mode: '0755'
+
+    - name: Create MongoDB log directory
+      file:
+        path: /var/log/mongodb
+        state: directory
+        owner: mongodb
+        group: mongodb
+        mode: '0755'
+
+    - name: Configure MongoDB
+      template:
+        src: mongod.conf.j2
+        dest: /etc/mongod.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: restart mongodb
+
+    - name: Configure MongoDB
+      template:
+        src: mongod.conf.j2
+        dest: /etc/mongod.conf
+        owner: mongodb
+        group: mongodb
+        mode: '0644'
+        backup: yes
+      notify: restart mongod
+
+    - name: Start and enable MongoDB service
+      systemd:
+        name: mongod
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Wait for MongoDB to start
+      wait_for:
+        port: 27017
+        host: localhost
+        delay: 10
+        timeout: 60
+
+    # Node.js Installation
     - name: Add NodeSource repository key
       apt_key:
         url: https://deb.nodesource.com/gpgkey/nodesource.gpg.key
@@ -51,6 +128,7 @@
       apt_repository:
         repo: "deb https://deb.nodesource.com/node_{{ nodejs_version }}.x {{ ansible_distribution_release }} main"
         state: present
+        update_cache: yes
 
     - name: Install Node.js
       apt:
@@ -58,17 +136,36 @@
         state: present
         update_cache: yes
 
+    - name: Verify Node.js installation
+      shell: node --version
+      register: node_version
+      changed_when: false
+
+    - name: Display Node.js version
+      debug:
+        msg: "Node.js version installed: {{ node_version.stdout }}"
+
     - name: Install PM2 globally
       npm:
         name: pm2
         global: yes
         state: present
 
+    - name: Install global Node.js packages
+      npm:
+        name: "{{ item }}"
+        global: yes
+        state: present
+      loop:
+        - nodemon
+        - forever
+
     - name: Install CloudWatch agent dependencies
       pip:
         name: 
           - awscli
           - boto3
+          - pymongo
         state: present
 
     - name: Create application user
@@ -78,6 +175,8 @@
         home: "/home/{{ app_user }}"
         create_home: yes
         system: no
+        groups: mongodb
+        append: yes
 
     - name: Create application directory
       file:
@@ -128,6 +227,32 @@
       become_user: "{{ app_user }}"
       environment:
         GIT_SSH_COMMAND: "ssh -i /home/{{ app_user }}/.ssh/id_rsa -o StrictHostKeyChecking=no"
+
+    # MongoDB Database Setup
+    - name: Create MongoDB database and user
+      shell: |
+        mongosh --eval "
+        use {{ mongodb_database_name }};
+        db.createUser({
+          user: '{{ mongodb_username }}',
+          pwd: '{{ mongodb_password }}',
+          roles: [
+            { role: 'readWrite', db: '{{ mongodb_database_name }}' },
+            { role: 'dbAdmin', db: '{{ mongodb_database_name }}' }
+          ]
+        });"
+      ignore_errors: yes
+      no_log: true
+
+    - name: Test MongoDB connection
+      shell: |
+        mongosh --eval "db.runCommand('ping').ok" {{ mongodb_database_name }}
+      register: mongodb_test
+      changed_when: false
+
+    - name: Display MongoDB connection status
+      debug:
+        msg: "MongoDB connection: {{ 'SUCCESS' if mongodb_test.rc == 0 else 'FAILED' }}"
 
     # Task 2.3: Secrets Injection
     - name: Copy environment-specific secrets file
@@ -244,11 +369,14 @@
         mode: '0644'
       notify: restart cloudwatch
 
-    - name: Ensure Nginx is running
+    - name: Ensure services are running
       systemd:
-        name: nginx
+        name: "{{ item }}"
         state: started
         enabled: yes
+      loop:
+        - nginx
+        - mongod
 
     - name: Force HTTPS redirection
       template:
@@ -257,6 +385,20 @@
         mode: '0644'
       notify: reload nginx
       when: ssl_enabled and force_https
+
+    # Health Checks
+    - name: Verify Node.js and MongoDB services
+      shell: |
+        echo "Node.js: $(node --version)"
+        echo "npm: $(npm --version)"
+        echo "PM2: $(pm2 --version)"
+        echo "MongoDB: $(mongosh --version)"
+      register: service_versions
+      changed_when: false
+
+    - name: Display service versions
+      debug:
+        msg: "{{ service_versions.stdout_lines }}"
 
   handlers:
     - name: reload nginx
@@ -267,6 +409,11 @@
     - name: restart nginx
       systemd:
         name: nginx
+        state: restarted
+
+    - name: restart mongodb
+      systemd:
+        name: mongod
         state: restarted
 
     - name: restart cloudwatch

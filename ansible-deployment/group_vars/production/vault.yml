@@ -4,3 +4,8 @@
 production_db_password: "production_secure_password_here"
 production_api_key: "production_api_key_here"
 production_jwt_secret: "production_jwt_secret_here"
+
+# MongoDB Passwords
+mongodb_admin_password: "prod_mongo_admin_secure_2024!"
+mongodb_app_password: "prod_app_password_secure_2024!"
+mongodb_root_password: "prod_root_password_secure_2024!"

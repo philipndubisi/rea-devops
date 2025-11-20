@@ -19,10 +19,21 @@ server_name: "staging.seisho.emerj.net"
 api_base_url: "https://staging.seisho.emerj.net"
 
 # Database and external services (staging)
-db_host: "staging-mongo.internal"
+db_host: "127.0.0.1"
 db_name: "rea_bible_app_staging"
 redis_host: "staging-redis.internal"
 redis_port: 6379
+
+# MongoDB Configuration
+mongodb_port: 27017
+mongodb_bind_ip: "127.0.0.1,{{ ansible_default_ipv4.address }}"
+mongodb_auth_enabled: true
+mongodb_admin_user: "admin"
+mongodb_app_user: "rea_app_user"
+mongodb_database: "{{ db_name }}"
+mongodb_max_connections: 1000
+mongodb_slow_op_threshold: 100
+mongodb_profiling_mode: "slowOp"
 
 # API Configuration
 api_version: "v1"
