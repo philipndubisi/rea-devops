@@ -3,6 +3,10 @@
   hosts: all
   gather_facts: yes
   become: yes
+  
+  vars_files:
+    - secrets/vault.yml
+    
   vars_prompt:
     - name: vault_password
       prompt: "Enter Ansible Vault password"
@@ -255,13 +259,62 @@
         msg: "MongoDB connection: {{ 'SUCCESS' if mongodb_test.rc == 0 else 'FAILED' }}"
 
     # Task 2.3: Secrets Injection
-    - name: Copy environment-specific secrets file
-      copy:
-        src: "secrets/{{ env_name }}.env"
+    # Generate environment-specific secret keys
+    - name: Generate JWT secret key for application
+      shell: openssl rand -base64 32
+      register: generated_jwt_secret
+      when: jwt_secret is not defined or jwt_secret == ""
+      delegate_to: localhost
+      run_once: true
+
+    - name: Generate API secret key for application  
+      shell: openssl rand -hex 32
+      register: generated_api_secret
+      when: api_secret is not defined or api_secret == ""
+      delegate_to: localhost
+      run_once: true
+
+    - name: Generate session secret for application
+      shell: openssl rand -base64 48
+      register: generated_session_secret
+      when: session_secret is not defined or session_secret == ""
+      delegate_to: localhost
+      run_once: true
+
+    - name: Set environment-specific secrets
+      set_fact:
+        jwt_secret_key: "{{ vault_api_keys['jwt_secret_' + env_name] | default(generated_jwt_secret.stdout) }}"
+        api_secret_key: "{{ vault_api_keys['api_key_' + env_name] | default(generated_api_secret.stdout) }}"
+        session_secret_key: "{{ vault_external_services['session_secret_' + env_name] | default(generated_session_secret.stdout) }}"
+        mongodb_password_env: "{{ mongodb_credentials[env_name].password }}"
+        mongodb_username_env: "{{ mongodb_credentials[env_name].username }}"
+        mongodb_database_env: "{{ mongodb_credentials[env_name].database }}"
+
+    - name: Display generated secrets info (masked)
+      debug:
+        msg: 
+          - "Environment: {{ env_name }}"
+          - "JWT Secret: {{ 'SET' if jwt_secret_key else 'NOT SET' }}"
+          - "API Secret: {{ 'SET' if api_secret_key else 'NOT SET' }}"
+          - "Session Secret: {{ 'SET' if session_secret_key else 'NOT SET' }}"
+          - "MongoDB Password: {{ 'SET' if mongodb_password_env else 'NOT SET' }}"
+
+    - name: Create dynamic environment file from template
+      template:
+        src: app.env.j2
         dest: "{{ app_directory }}/.env"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: '0600'
+
+    - name: Copy environment-specific secrets file (fallback)
+      copy:
+        src: "{{ env_name }}.env"
+        dest: "{{ app_directory }}/.env.backup"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0600'
+      when: false  # Disabled in favor of template approach
 
     - name: Install application dependencies
       npm:

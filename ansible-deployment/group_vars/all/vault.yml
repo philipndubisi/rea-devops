@@ -47,4 +47,17 @@ vault_external_services:
   sendgrid_api_key_production: "SG.your_production_sendgrid_key"
   stripe_secret_key_staging: "sk_test_your_staging_stripe_key"
   stripe_secret_key_production: "sk_live_your_production_stripe_key"
+  session_secret_staging: "your_staging_session_secret_here"
+  session_secret_production: "your_production_session_secret_here"
+
+# MongoDB Configuration
+mongodb_credentials:
+  staging:
+    username: "rea_app_staging"
+    password: "staging_mongo_password_here"
+    database: "rea_bible_staging"
+  production:
+    username: "rea_app_prod"
+    password: "production_mongo_password_here"
+    database: "rea_bible_production"
   
