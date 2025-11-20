@@ -14,9 +14,9 @@ api_only_deployment: true
 frontend_enabled: false
 
 # Domain and SSL for API endpoints
-domain_name: "api-staging.seisho.emerj.net"
-server_name: "api-staging.seisho.emerj.net"
-api_base_url: "https://api-staging.seisho.emerj.net"
+domain_name: "staging.seisho.emerj.net"
+server_name: "staging.seisho.emerj.net"
+api_base_url: "https://staging.seisho.emerj.net"
 
 # Database and external services (staging)
 db_host: "staging-mongo.internal"

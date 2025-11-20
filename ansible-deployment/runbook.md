@@ -166,7 +166,8 @@ ansible all -i inventory/staging/hosts -m ping --ask-vault-pass
 head -1 group_vars/all/vault.yml  # Should show $ANSIBLE_VAULT
 
 # Re-encrypt if needed
-ansible-vault rekey group_vars/all/vault.yml
+cd group_vars/all/
+ansible-vault encrypt vault.yml
 
 # Test vault access
 ansible-vault view group_vars/all/vault.yml
