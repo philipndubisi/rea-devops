@@ -4,15 +4,13 @@
 # Storage configuration
 storage:
   dbPath: /var/lib/mongodb
-  journal:
-    enabled: true
+  # journaling is always enabled by default in wiredTiger (cannot be disabled)
 
 # System log configuration
 systemLog:
   destination: file
   logAppend: true
   path: /var/log/mongodb/mongod.log
-  logRotate: rotate
 
 # Network interfaces
 net:
@@ -23,8 +21,6 @@ net:
 # Process management
 processManagement:
   timeZoneInfo: /usr/share/zoneinfo
-  fork: true
-  pidFilePath: /var/lib/mongodb/mongod.lock
 
 # Security configuration
 {% if mongodb_auth_enabled | default(true) %}
