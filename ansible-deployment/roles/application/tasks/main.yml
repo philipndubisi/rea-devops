@@ -1,0 +1,73 @@
+---
+# REA DevOps Backend Application Tasks
+# This role handles backend-specific application deployment and configuration
+
+- name: Install Node.js application dependencies
+  npm:
+    path: "{{ app_directory }}"
+    state: present
+    production: "{{ node_env == 'production' }}"
+  become_user: "{{ app_user }}"
+  tags:
+    - app
+    - dependencies
+
+- name: Create application environment file
+  template:
+    src: app.env.j2
+    dest: "{{ app_directory }}/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0600'
+  tags:
+    - app
+    - config
+  notify:
+    - restart application
+
+- name: Create PM2 configuration for backend API
+  template:
+    src: pm2.config.js.j2
+    dest: "{{ app_directory }}/pm2.config.js"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: '0644'
+  tags:
+    - app
+    - pm2
+  notify:
+    - restart application
+
+- name: Build application (if build script exists)
+  shell: npm run build
+  args:
+    chdir: "{{ app_directory }}"
+  become_user: "{{ app_user }}"
+  ignore_errors: yes
+  when: node_env == 'production'
+  tags:
+    - app
+    - build
+
+- name: Start backend API with PM2
+  shell: |
+    pm2 delete {{ app_name }} || true
+    pm2 start pm2.config.js
+    pm2 save
+  args:
+    chdir: "{{ app_directory }}"
+  become_user: "{{ app_user }}"
+  tags:
+    - app
+    - pm2
+
+- name: Verify application is running
+  uri:
+    url: "http://localhost:{{ app_port }}{{ health_check_endpoint | default('/health') }}"
+    method: GET
+    timeout: 30
+  retries: 5
+  delay: 10
+  tags:
+    - app
+    - health-check

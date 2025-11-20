@@ -1,24 +1,53 @@
 ---
-# Staging environment variables
+# Staging Environment Variables - Backend API Only
 env_name: staging
-app_port: 3001
+app_port: 3600
 node_env: development
 branch_name: develop
 debug_enabled: true
 log_level: debug
 pm2_instances: 1
 
-# Domain and SSL
-domain_name: "staging.seisho.emerj.net"
-server_name: "staging.seisho.emerj.net"
+# Backend-specific configuration
+backend_only: true
+api_only_deployment: true
+frontend_enabled: false
+
+# Domain and SSL for API endpoints
+domain_name: "api-staging.seisho.emerj.net"
+server_name: "api-staging.seisho.emerj.net"
+api_base_url: "https://api-staging.seisho.emerj.net"
 
 # Database and external services (staging)
-db_host: ""
-api_base_url: "https://api.staging.seisho.emerj.net"
+db_host: "staging-mongo.internal"
+db_name: "rea_bible_app_staging"
+redis_host: "staging-redis.internal"
+redis_port: 6379
 
-# Monitoring
+# API Configuration
+api_version: "v1"
+api_prefix: "/api/v1"
+cors_origins:
+  - "https://staging.seisho.emerj.net"
+  - "http://localhost:3000"
+  - "http://localhost:3600"
+
+# Monitoring and health checks
 health_check_interval: 30
+health_check_endpoint: "/api/v1/health"
+metrics_enabled: true
 
-# SSL configuration
+# SSL configuration for API
 ssl_enabled: true
 force_https: true
+
+# Rate limiting and security
+rate_limit_enabled: true
+rate_limit_max: 1000
+rate_limit_window: 900  # 15 minutes
+
+# Logging configuration
+log_format: "combined"
+log_rotation: true
+max_log_files: 10
+max_log_size: "100M"

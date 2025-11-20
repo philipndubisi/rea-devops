@@ -74,6 +74,8 @@ server {
     # Client max body size (for file uploads)
     client_max_body_size 50M;
 
+    
+
     # Health check endpoint (bypass proxy)
     location /health {
         proxy_pass http://127.0.0.1:{{ app_port }}/health;

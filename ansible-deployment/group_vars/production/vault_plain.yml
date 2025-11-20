@@ -1,6 +1,0 @@
-# This file should be encrypted with ansible-vault
-# Production environment secrets
-# Command: ansible-vault encrypt group_vars/production/vault.yml  
-production_db_password: "production_secure_password_here"
-production_api_key: "production_api_key_here"
-production_jwt_secret: "production_jwt_secret_here"

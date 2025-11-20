@@ -1,6 +1,42 @@
+# Production Environment Inventory
+# REA DevOps Interactive Bible Backend - Production Servers
+
 [production]
-production-server ansible_host=192.168.33.10 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
+production-app-01 ansible_host=YOUR_PRODUCTION_SERVER_IP ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
+# Uncomment and configure additional production servers for high availability
+# production-app-02 ansible_host=YOUR_PRODUCTION_SERVER_IP_2 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
+# production-app-03 ansible_host=YOUR_PRODUCTION_SERVER_IP_3 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
 
 [production:vars]
+# Environment identification
 env_group=production
 env_name=production
+
+# Common production variables
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+ansible_ssh_timeout=30
+ansible_ssh_retries=3
+
+# Backend-specific configurations
+backend_only=true
+api_only_deployment=true
+high_availability=true
+
+[webservers]
+production-app-01
+# production-app-02
+# production-app-03
+
+[appservers]
+production-app-01
+# production-app-02
+# production-app-03
+
+[backend_servers]
+production-app-01
+# production-app-02
+# production-app-03
+
+[loadbalancers]
+production-app-01

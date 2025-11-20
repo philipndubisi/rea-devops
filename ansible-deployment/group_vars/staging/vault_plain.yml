@@ -1,6 +1,0 @@
-# This file should be encrypted with ansible-vault
-# Staging environment secrets  
-# Command: ansible-vault encrypt group_vars/staging/vault.yml
-staging_db_password: "staging_secure_password_here"
-staging_api_key: "staging_api_key_here"
-staging_jwt_secret: "staging_jwt_secret_here"

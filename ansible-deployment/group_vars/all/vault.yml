@@ -1,9 +1,50 @@
-# This file should be encrypted with ansible-vault encrypt group_vars/all/vault.yml
+---
+# IMPORTANT: This file should be encrypted with ansible-vault
 # Command: ansible-vault encrypt group_vars/all/vault.yml
-# PLACEHOLDER - Replace with your actual private SSH deployment key
+# 
+# SSH Deployment Key Configuration
+# Replace the placeholder below with your actual SSH private key
+# that has access to the GitHub repository
+
 deployment_private_key: |
   -----BEGIN OPENSSH PRIVATE KEY-----
-  # PUT YOUR ACTUAL SSH PRIVATE KEY HERE THEN ENCRYPT THIS FILE
-  # This is just a placeholder
+  # REPLACE THIS ENTIRE BLOCK WITH YOUR ACTUAL SSH PRIVATE KEY
+  # Example format:
+  # b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABFwAAAAdzc2gtcn
+  # NhAAAAAwEAAQAAAQEA7VKTKdmr+LwjaTAjmUcpWR...
+  # YOUR_ACTUAL_SSH_PRIVATE_KEY_CONTENT_HERE
+  # IMPORTANT: After adding your key, encrypt this file immediately!
   -----END OPENSSH PRIVATE KEY-----
+
+# Database credentials (if needed for backend services)
+vault_database_credentials:
+  staging:
+    username: "staging_db_user" 
+    password: "your_staging_db_password_here"
+  production:
+    username: "prod_db_user"
+    password: "your_production_db_password_here"
+
+# API Keys and Secrets
+vault_api_keys:
+  jwt_secret_staging: "your_staging_jwt_secret_here"
+  jwt_secret_production: "your_production_jwt_secret_here"
+  api_key_staging: "your_staging_api_key_here" 
+  api_key_production: "your_production_api_key_here"
+
+# AWS Credentials (for CloudWatch and S3)
+vault_aws_credentials:
+  staging:
+    access_key_id: "AKIAI_STAGING_ACCESS_KEY"
+    secret_access_key: "your_staging_secret_access_key"
+  production:
+    access_key_id: "AKIAI_PRODUCTION_ACCESS_KEY"
+    secret_access_key: "your_production_secret_access_key"
+
+# External service API keys
+vault_external_services:
+  sendgrid_api_key_staging: "SG.your_staging_sendgrid_key"
+  sendgrid_api_key_production: "SG.your_production_sendgrid_key"
+  stripe_secret_key_staging: "sk_test_your_staging_stripe_key"
+  stripe_secret_key_production: "sk_live_your_production_stripe_key"
   

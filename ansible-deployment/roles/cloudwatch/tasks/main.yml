@@ -1,0 +1,71 @@
+---
+# CloudWatch Monitoring Configuration for Backend API
+# Handles log aggregation and metrics collection for backend services
+
+- name: Install CloudWatch agent
+  get_url:
+    url: "https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb"
+    dest: "/tmp/amazon-cloudwatch-agent.deb"
+  tags:
+    - cloudwatch
+    - install
+
+- name: Install CloudWatch agent package
+  apt:
+    deb: "/tmp/amazon-cloudwatch-agent.deb"
+    state: present
+  tags:
+    - cloudwatch
+    - install
+
+- name: Create CloudWatch log group for backend API
+  shell: |
+    aws logs create-log-group \
+      --log-group-name "{{ cloudwatch_log_group }}" \
+      --region "{{ cloudwatch_region }}" || true
+  environment:
+    AWS_ACCESS_KEY_ID: "{{ vault_aws_credentials[env_name].access_key_id }}"
+    AWS_SECRET_ACCESS_KEY: "{{ vault_aws_credentials[env_name].secret_access_key }}"
+  tags:
+    - cloudwatch
+    - logs
+
+- name: Configure CloudWatch agent for backend monitoring
+  template:
+    src: cloudwatch-config.json.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+    mode: '0644'
+  notify:
+    - restart cloudwatch agent
+  tags:
+    - cloudwatch
+    - config
+
+- name: Create CloudWatch agent credentials
+  template:
+    src: cloudwatch-credentials.j2
+    dest: /home/cwagent/.aws/credentials
+    owner: cwagent
+    group: cwagent
+    mode: '0600'
+  tags:
+    - cloudwatch
+    - credentials
+
+- name: Start and enable CloudWatch agent
+  systemd:
+    name: amazon-cloudwatch-agent
+    state: started
+    enabled: yes
+  tags:
+    - cloudwatch
+    - service
+
+- name: Configure log rotation for application logs
+  template:
+    src: app-logrotate.j2
+    dest: "/etc/logrotate.d/{{ app_name }}"
+    mode: '0644'
+  tags:
+    - cloudwatch
+    - logrotate

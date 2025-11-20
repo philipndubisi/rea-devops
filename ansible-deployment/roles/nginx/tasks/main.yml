@@ -1,0 +1,94 @@
+---
+# Nginx Configuration for Backend API Reverse Proxy
+# Configures Nginx as a reverse proxy for the backend API service
+
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+  tags:
+    - nginx
+    - install
+
+- name: Remove default Nginx configuration
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Create Nginx configuration for backend API
+  template:
+    src: nginx-backend.conf.j2
+    dest: "/etc/nginx/sites-available/{{ app_name }}-{{ env_name }}"
+    mode: '0644'
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Enable Nginx site for backend API
+  file:
+    src: "/etc/nginx/sites-available/{{ app_name }}-{{ env_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ app_name }}-{{ env_name }}"
+    state: link
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Create Nginx log directory
+  file:
+    path: "{{ app_log_dir }}"
+    state: directory
+    owner: www-data
+    group: adm
+    mode: '0755'
+  tags:
+    - nginx
+    - logs
+
+- name: Configure Nginx security settings
+  template:
+    src: nginx-security.conf.j2
+    dest: /etc/nginx/conf.d/security.conf
+    mode: '0644'
+  notify:
+    - restart nginx
+  when: security_headers is defined and security_headers
+  tags:
+    - nginx
+    - security
+
+- name: Test Nginx configuration
+  command: nginx -t
+  register: nginx_test
+  changed_when: false
+  tags:
+    - nginx
+    - test
+
+- name: Start and enable Nginx service
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
+  tags:
+    - nginx
+    - service
+
+- name: Configure firewall for Nginx (if UFW is enabled)
+  ufw:
+    rule: allow
+    name: "Nginx Full"
+  when: ansible_facts['os_family'] == "Debian"
+  ignore_errors: yes
+  tags:
+    - nginx
+    - firewall

@@ -1,24 +1,65 @@
 ---
-# Production environment variables
+# Production Environment Variables - Backend API Only
 env_name: production
 app_port: 3000
 node_env: production
 branch_name: main
 debug_enabled: false
 log_level: error
-pm2_instances: 4
+pm2_instances: 4  # Scale based on server CPU cores
 
-# Domain and SSL
-domain_name: "app.rea-devops.com"
-server_name: "app.rea-devops.com"
+# Backend-specific configuration
+backend_only: true
+api_only_deployment: true
+frontend_enabled: false
+high_availability: true
+
+# Domain and SSL for production API
+domain_name: "api.seisho.emerj.net"
+server_name: "api.seisho.emerj.net"
+api_base_url: "https://api.seisho.emerj.net"
 
 # Database and external services (production)
-db_host: "prod-db.amazonaws.com"
-api_base_url: "https://api.rea-devops.com"
+db_host: "prod-mongo.internal"
+db_name: "rea_bible_app_production"
+redis_host: "prod-redis.internal"
+redis_port: 6379
 
-# Monitoring
+# API Configuration
+api_version: "v1"
+api_prefix: "/api/v1"
+cors_origins:
+  - "https://seisho.emerj.net"
+  - "https://www.seisho.emerj.net"
+  - "https://app.seisho.emerj.net"
+
+# Production monitoring and health checks
 health_check_interval: 60
+health_check_endpoint: "/api/v1/health"
+metrics_enabled: true
+performance_monitoring: true
 
-# SSL configuration
+# SSL configuration for production API
 ssl_enabled: true
 force_https: true
+
+# Production security settings
+rate_limit_enabled: true
+rate_limit_max: 5000
+rate_limit_window: 900  # 15 minutes
+security_headers: true
+ddos_protection: true
+
+# Logging configuration
+log_format: "json"
+log_rotation: true
+max_log_files: 30
+max_log_size: "500M"
+log_retention_days: 90
+
+# Performance tuning
+max_connections: 1000
+connection_timeout: 30
+keepalive_timeout: 75
+worker_processes: auto
+worker_connections: 1024
