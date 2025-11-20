@@ -1,21 +1,33 @@
 ---
 # Common variables for all environments
 app_name: "rea-interactive-bible-BE"
-app_user: "interactive-bible"
+app_user: "ubuntu"
 ansible_user: "ubuntu"
-domain_name:  "seisho.emerj.net"
-email: "ceo@Seisho.emerge.net"
-app_directory: "/opt/bible-app/{{ app_name }}"
-repository_url: "https://github.com/hngprojects/rea-interactive-bible-BE"
+domain_name: "seisho.emerj.net"
+email: "ceo@seisho.emerj.net"
+app_directory: "/home/{{ ansible_user }}/{{ app_name }}"
+repository_url: "git@github.com:hngprojects/rea-interactive-bible-BE.git"
 
 # System settings
 nodejs_version: "18"
 nginx_sites_enabled: "/etc/nginx/sites-enabled"
 nginx_sites_available: "/etc/nginx/sites-available"
 
+# MongoDB settings
+mongodb_port: 27017
+mongodb_bind_ip: "127.0.0.1"
+mongodb_data_dir: "/var/lib/mongodb"
+mongodb_log_dir: "/var/log/mongodb"
+
+# Application settings
+app_port: 3600
+
 # CloudWatch settings
-cloudwatch_log_group: "/aws/ec2/{{ app_name }}/{{ env_name }}"
+cloudwatch_log_group: "/aws/ec2/{{ app_name }}"
 cloudwatch_region: "us-west-2"
+
+# Git settings
+git_branch: "{{ env_name | default('main') }}"
 
 # SSL settings
 certbot_email: "{{ email }}"
