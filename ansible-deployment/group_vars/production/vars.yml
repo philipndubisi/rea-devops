@@ -1,7 +1,7 @@
 ---
 # Production Environment Variables - Backend API Only
 env_name: production
-app_port: 3000
+app_port: 3600
 node_env: production
 branch_name: main
 # Git settings
