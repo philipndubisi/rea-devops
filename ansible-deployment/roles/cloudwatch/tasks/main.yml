@@ -1,0 +1,211 @@
+---
+
+- name: Check if CloudWatch agent exists
+  stat:
+    path: /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+  register: cw_agent_exists
+  become: yes
+
+- name: Download CloudWatch agent
+  get_url:
+    url: https://s3.amazonaws.com/amazoncloudwatch-agent/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb
+    dest: /tmp/amazon-cloudwatch-agent.deb
+    mode: '0644'
+  become: yes
+  when: not cw_agent_exists.stat.exists
+
+- name: Install CloudWatch agent
+  apt:
+    deb: /tmp/amazon-cloudwatch-agent.deb
+    state: present
+  become: yes
+  when: not cw_agent_exists.stat.exists
+  register: cw_installed
+
+- name: Display installation result
+  debug:
+    msg: "CloudWatch agent {{ 'newly installed' if cw_installed.changed else 'already installed' }}"
+
+- name: Clean up installer
+  file:
+    path: /tmp/amazon-cloudwatch-agent.deb
+    state: absent
+  become: yes
+
+- name: Check if EC2 has IAM role
+  shell: aws sts get-caller-identity
+  register: iam_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Display IAM role status
+  debug:
+    msg: "{{ ' IAM Role is configured' if iam_check.rc == 0 else ' WARNING: No IAM role detected! CloudWatch will fail without CloudWatchAgentServerPolicy' }}"
+
+- name: Fail if no IAM role (optional - comment out if you're sure role exists)
+  fail:
+    msg: |
+       CRITICAL: EC2 instance does not have an IAM role!
+      
+      CloudWatch logs CANNOT stream without IAM permissions.
+      
+      To fix:
+      1. Go to AWS EC2 Console
+      2. Select this instance
+      3. Actions → Security → Modify IAM role
+      4. Create/attach role with 'CloudWatchAgentServerPolicy'
+      5. Re-run this playbook
+  when: iam_check.rc != 0 and false  # Set to 'true' to enforce IAM check
+
+
+- name: Ensure PM2 log directory exists
+  file:
+    path: "/home/{{ deploy_user }}/.pm2/logs"
+    state: directory
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: '0755'
+  become: yes
+
+- name: Grant CloudWatch read access to user home
+  file:
+    path: "/home/{{ deploy_user }}"
+    mode: '0755'
+    state: directory
+  become: yes
+
+- name: Grant CloudWatch read access to .pm2 directory
+  file:
+    path: "/home/{{ deploy_user }}/.pm2"
+    mode: '0755'
+    state: directory
+  become: yes
+  ignore_errors: yes
+
+- name: Grant CloudWatch read access to .pm2/logs
+  file:
+    path: "/home/{{ deploy_user }}/.pm2/logs"
+    mode: '0755'
+    state: directory
+  become: yes
+  ignore_errors: yes
+
+
+- name: Create CloudWatch config directory
+  file:
+    path: /opt/aws/amazon-cloudwatch-agent/etc
+    state: directory
+    mode: '0755'
+  become: yes
+
+- name: Deploy CloudWatch configuration from template
+  template:
+    src: cloudwatch-config.json.j2
+    dest: /opt/aws/amazon-cloudwatch-agent/etc/config.json
+    mode: '0644'
+    owner: root
+    group: root
+  become: yes
+  register: config_deployed
+
+- name: Display configuration deployment result
+  debug:
+    msg: "CloudWatch configuration {{ 'updated' if config_deployed.changed else 'unchanged' }}"
+
+- name: Stop CloudWatch agent (for clean restart)
+  command: >
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+    -a stop
+    -m ec2
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json
+  become: yes
+  ignore_errors: yes
+  changed_when: false
+
+- name: Start CloudWatch agent with new configuration
+  command: >
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+    -a fetch-config
+    -m ec2
+    -s
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/config.json
+  become: yes
+  register: agent_started
+
+- name: Display agent start result
+  debug:
+    var: agent_started.stdout_lines
+
+- name: Wait for agent to initialize
+  pause:
+    seconds: 5
+
+
+- name: Query CloudWatch agent status
+  command: >
+    /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl
+    -a query
+    -m ec2
+    -c default
+  become: yes
+  register: agent_status
+  changed_when: false
+
+- name: Display agent status
+  debug:
+    var: agent_status.stdout_lines
+
+- name: Check if agent is running
+  shell: echo "{{ agent_status.stdout }}" | grep -i "running"
+  register: agent_running_check
+  ignore_errors: yes
+  changed_when: false
+
+- name: Agent health status
+  debug:
+    msg: "{{ 'CloudWatch agent is RUNNING' if agent_running_check.rc == 0 else 'WARNING: CloudWatch agent may not be running properly' }}"
+
+- name: Enable CloudWatch agent service
+  systemd:
+    name: amazon-cloudwatch-agent
+    enabled: yes
+    state: started
+  become: yes
+
+- name: CloudWatch setup summary
+  debug:
+    msg: |
+      ═══════════════════════════════════════════════════════════════════════
+                        CLOUDWATCH CONFIGURATION COMPLETE
+      ═══════════════════════════════════════════════════════════════════════
+      
+       LOG GROUPS CREATED (verify in AWS Console):
+      
+      Application Logs:
+         /ec2/{{ env_name }}/{{ app_name }}/{{ app_component }}
+           ├─ stdout: Application standard output
+           └─ stderr: Application error output
+      
+      Nginx Logs:
+         /ec2/{{ env_name }}/{{ app_name }}/nginx
+           ├─ access: HTTP access logs
+           └─ error: Nginx error logs
+      
+      LOG FILES MONITORED:
+        • /home/{{ deploy_user }}/.pm2/logs/{{ pm2_app_name }}-out.log
+        • /home/{{ deploy_user }}/.pm2/logs/{{ pm2_app_name }}-error.log
+        • /var/log/nginx/{{ app_name }}_access.log
+        • /var/log/nginx/{{ app_name }}_error.log
+      
+      NEXT STEPS:
+        1. Wait 2-3 minutes for initial log streaming
+        2. Go to AWS Console → CloudWatch → Log Groups
+        3. Verify log groups exist with EXACT names above
+        4. Click on log groups to see log streams
+        5. Check timestamps are recent
+      
+       IF LOGS DON'T APPEAR:
+        • Check IAM role: aws sts get-caller-identity
+        • Check agent: sudo systemctl status amazon-cloudwatch-agent
+        • Check logs: sudo tail -f /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log
+

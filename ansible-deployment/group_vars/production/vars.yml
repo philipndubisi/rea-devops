@@ -1,0 +1,12 @@
+---
+env_name: prod
+
+app_name: "seisho"     
+app_component: "backend"
+
+deploy_user: "ubuntu"
+
+pm2_app_name: "{{ app_name }}-{{ env_name }}" 
+
+aws_region: "us-east-1"
+
