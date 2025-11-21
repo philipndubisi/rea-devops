@@ -235,25 +235,22 @@
 
     # Task 2.3: Secrets Injection
     # Generate environment-specific secret keys
-    # - name: Generate JWT secret key for application
-    # shell: openssl rand -base64 32
-    #  register: generated_jwt_secret
-    #  when: jwt_secret is not defined or jwt_secret == ""
-    #  delegate_to: localhost
-    #  run_once: true
+    - name: Generate JWT secret key for application
+      shell: openssl rand -base64 32
+      register: generated_jwt_secret
+      when: jwt_secret is not defined or jwt_secret == ""
+      run_once: true
 
     - name: Generate API secret key for application  
       shell: openssl rand -hex 32
       register: generated_api_secret
       when: api_secret is not defined or api_secret == ""
-      delegate_to: localhost
       run_once: true
 
     - name: Generate session secret for application
       shell: openssl rand -base64 48
       register: generated_session_secret
       when: session_secret is not defined or session_secret == ""
-      delegate_to: localhost
       run_once: true
 
     - name: Set environment-specific secrets
@@ -261,9 +258,9 @@
         jwt_secret_key: "{{ vault_api_keys['jwt_secret'] | default(generated_jwt_secret.stdout) }}"
         api_secret_key: "{{ vault_api_keys['api_key'] | default(generated_api_secret.stdout) }}"
         session_secret_key: "{{ vault_external_services['session_secret'] | default(generated_session_secret.stdout) }}"
-        mongodb_password_env: "{{ mongodb_credentials.password }}"
-        mongodb_username_env: "{{ mongodb_credentials.username }}"
-        mongodb_database_env: "{{ mongodb_credentials.database }}"
+        mongodb_password_env: "{{ mongodb_credentials[env_name].password }}"
+        mongodb_username_env: "{{ mongodb_credentials[env_name].username }}"
+        mongodb_database_env: "{{ mongodb_credentials[env_name].database }}"
 
     - name: Display generated secrets info (masked)
       debug:

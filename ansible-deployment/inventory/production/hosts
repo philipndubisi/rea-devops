@@ -2,10 +2,10 @@
 # REA DevOps Interactive Bible Backend - Production Servers
 
 [production]
-production ansible_host=50.16.19.255 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
+production ansible_host=18.223.241.84 ansible_user=interactive-bible ansible_ssh_private_key_file=~/.ssh/deployment_key
 # Uncomment and configure additional production servers for high availability
-# production-app-02 ansible_host=YOUR_PRODUCTION_SERVER_IP_2 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
-# production-app-03 ansible_host=YOUR_PRODUCTION_SERVER_IP_3 ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/deployment_key
+# production-app-02 ansible_host=YOUR_PRODUCTION_SERVER_IP_2 ansible_user=interactive-bible ansible_ssh_private_key_file=~/.ssh/deployment_key
+# production-app-03 ansible_host=YOUR_PRODUCTION_SERVER_IP_3 ansible_user=interactive-bible ansible_ssh_private_key_file=~/.ssh/deployment_key
 
 [production:vars]
 # Environment identification
@@ -22,21 +22,3 @@ ansible_ssh_retries=3
 backend_only=true
 api_only_deployment=true
 high_availability=true
-
-[webservers]
-production
-# production-app-02
-# production-app-03
-
-[appservers]
-production
-# production-app-02
-# production-app-03
-
-[backend_servers]
-production
-# production-app-02
-# production-app-03
-
-[loadbalancers]
-production

@@ -3,7 +3,8 @@
 env_name: staging
 app_port: 3600
 node_env: development
-branch_name: develop
+branch_name: staging
+git_branch: staging
 debug_enabled: true
 log_level: debug
 pm2_instances: 1

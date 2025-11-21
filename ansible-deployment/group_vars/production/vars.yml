@@ -4,6 +4,9 @@ env_name: production
 app_port: 3000
 node_env: production
 branch_name: main
+# Git settings
+git_branch: main
+
 debug_enabled: false
 log_level: error
 pm2_instances: 4  # Scale based on server CPU cores
