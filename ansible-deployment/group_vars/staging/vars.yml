@@ -1,0 +1,74 @@
+---
+# Staging environment specific variables
+env_name: "staging"
+
+# Domain configurations for staging
+frontend_domain: "staging.seisho.emerj.net"
+backend_domain: "api.staging.seisho.emerj.net"
+
+# Port mappings for staging
+frontend_port: "3000"
+backend_port: "3600"
+
+# Resource allocation for staging
+nginx_worker_connections: "1024"
+client_max_body_size: "100M"
+
+# Logging configuration for staging
+log_level: "debug"
+log_format_type: "main"  # Use simpler format for debugging
+log_retention_days: "30"
+nginx_log_retention_days: "52"
+error_log_retention_days: "14"
+log_rotation_size: "100M"
+nginx_log_rotation_size: "500M"
+error_log_rotation_size: "50M"
+
+# Rate limiting for staging (more relaxed)
+api_rate_limit: "100r/s"
+auth_rate_limit: "10r/m" 
+global_rate_limit: "1000r/s"
+api_burst: "50"
+auth_burst: "10"
+global_burst: "100"
+
+# Caching settings for staging
+enable_api_cache: false
+cache_zone_size: "10m"
+cache_max_size: "1g"
+cache_inactive_time: "60m"
+api_cache_time: "1m"
+error_cache_time: "1m"
+static_cache_time: "30d"
+
+# Timeout configuration for staging
+proxy_timeout: "300s"
+api_timeout: "60s"
+
+# CORS settings for staging
+cors_origin: "https://staging.seisho.emerj.net"
+
+# Feature flags for staging
+enable_api_docs: true
+debug_enabled: true
+
+# SSL settings for staging
+ssl_cert_path: "/etc/letsencrypt/live/staging.seisho.emerj.net/fullchain.pem"
+ssl_key_path: "/etc/letsencrypt/live/staging.seisho.emerj.net/privkey.pem"
+
+# Gzip compression for staging
+gzip_compression_level: "6"
+
+# SSL Session configuration for staging
+ssl_session_cache_size: "5m"
+ssl_session_timeout: "5m"
+
+# DNS settings for staging
+dns_resolver: "8.8.8.8 8.8.4.4"
+
+# Log rotation notification (disabled for staging)
+log_rotation_notify: false
+
+# CloudWatch settings for staging
+cloudwatch_log_group: "/aws/ec2/staging/{{ app_name }}"
+cloudwatch_region: "us-west-2"

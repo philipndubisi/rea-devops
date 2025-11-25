@@ -1,0 +1,265 @@
+# Dynamic Site Configuration for {{ app_name }} - {{ env_name }} Environment
+# Frontend: {{ frontend_domain }}:{{ frontend_port }}
+# Backend API: {{ backend_domain }}:{{ backend_port }}
+# Generated: {{ ansible_date_time.iso8601 }}
+
+# Upstream Backend Configuration
+upstream backend_{{ env_name }} {
+    server 127.0.0.1:{{ backend_port }} max_fails=3 fail_timeout=30s;
+    {% if env_name == 'production' %}
+    # Production can have multiple backend instances
+    # server 127.0.0.1:{{ (backend_port | int) + 1 }} max_fails=3 fail_timeout=30s backup;
+    {% endif %}
+    keepalive 32;
+}
+
+# HTTP to HTTPS Redirection
+server {
+    listen 80;
+    server_name {{ frontend_domain }} {{ backend_domain }};
+    
+    # Security headers for HTTP
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "{{ x_frame_options }}" always;
+    
+    # Let's Encrypt challenge location
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+        allow all;
+    }
+    
+    # Redirect all other HTTP traffic to HTTPS
+    location / {
+        return 301 https://$server_name$request_uri;
+    }
+}
+
+# Frontend HTTPS Server
+server {
+    listen 443 ssl http2;
+    server_name {{ frontend_domain }};
+    
+    # SSL Configuration (Dynamic paths)
+    ssl_certificate {{ ssl_cert_path }};
+    ssl_private_key {{ ssl_key_path }};
+    
+    # SSL Security Headers
+    add_header Strict-Transport-Security "max-age={{ hsts_max_age }}; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "{{ x_frame_options }}" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "{{ referrer_policy }}" always;
+    
+    {% if env_name == 'production' %}
+    # Production-specific security headers
+    {% for header_name, header_value in security_headers.items() %}
+    add_header {{ header_name | replace('_', '-') | title }} "{{ header_value }}" always;
+    {% endfor %}
+    {% endif %}
+    
+    # Rate limiting for frontend
+    limit_req zone=global_limit burst={{ global_burst }} nodelay;
+    
+    # Frontend static file serving (if needed)
+    root /var/www/{{ app_name }}/frontend;
+    index index.html index.htm;
+    
+    # Access and Error Logs (Dynamic paths)
+    {% if log_format_type == 'json' %}
+    access_log {{ nginx_log_dir }}/{{ env_name }}-frontend-access.log json_combined;
+    {% else %}
+    access_log {{ nginx_log_dir }}/{{ env_name }}-frontend-access.log main;
+    {% endif %}
+    error_log {{ nginx_log_dir }}/{{ env_name }}-frontend-error.log {{ log_level }};
+    
+    # Frontend application
+    location / {
+        try_files $uri $uri/ /index.html;
+        
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires {{ static_cache_time }};
+            add_header Cache-Control "public, immutable";
+            add_header X-Content-Type-Options "nosniff" always;
+        }
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        return 200 "OK\n";
+        add_header Content-Type text/plain;
+    }
+}
+
+# Backend API HTTPS Server  
+server {
+    listen 443 ssl http2;
+    server_name {{ backend_domain }};
+    
+    # SSL Configuration (Dynamic paths)
+    ssl_certificate {{ ssl_cert_path }};
+    ssl_private_key {{ ssl_key_path }};
+    
+    # SSL Security Headers
+    add_header Strict-Transport-Security "max-age={{ hsts_max_age }}; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "{{ x_frame_options }}" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "{{ referrer_policy }}" always;
+    
+    {% if env_name == 'production' %}
+    # Production-specific security headers
+    {% for header_name, header_value in security_headers.items() %}
+    add_header {{ header_name | replace('_', '-') | title }} "{{ header_value }}" always;
+    {% endfor %}
+    {% endif %}
+    
+    # CORS Configuration (Dynamic origin)
+    add_header Access-Control-Allow-Origin "{{ cors_origin }}" always;
+    add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH" always;
+    add_header Access-Control-Allow-Headers "Accept, Authorization, Content-Type, X-Requested-With, X-CSRF-Token" always;
+    add_header Access-Control-Allow-Credentials "true" always;
+    add_header Access-Control-Max-Age "86400" always;
+    
+    # Handle preflight requests
+    if ($request_method = 'OPTIONS') {
+        return 204;
+    }
+    
+    # Access and Error Logs (Dynamic paths)  
+    {% if log_format_type == 'json' %}
+    access_log {{ nginx_log_dir }}/{{ env_name }}-backend-access.log json_combined;
+    {% else %}
+    access_log {{ nginx_log_dir }}/{{ env_name }}-backend-access.log detailed;
+    {% endif %}
+    error_log {{ nginx_log_dir }}/{{ env_name }}-backend-error.log {{ log_level }};
+    
+    # API Documentation (Environment-conditional)
+    {% if enable_api_docs %}
+    location /api-docs {
+        proxy_pass http://backend_{{ env_name }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+        
+        # No caching for API docs
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+    {% endif %}
+    
+    # Authentication endpoints (Strict rate limiting)
+    location ~ ^/api/(auth|login|register|reset-password) {
+        limit_req zone=auth_limit burst={{ auth_burst }} nodelay;
+        
+        proxy_pass http://backend_{{ env_name }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+        
+        # Proxy timeouts for auth
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # No caching for auth endpoints
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        add_header Pragma "no-cache";
+        add_header Expires "0";
+    }
+    
+    # Main API endpoints
+    location /api/ {
+        limit_req zone=api_limit burst={{ api_burst }} nodelay;
+        
+        proxy_pass http://backend_{{ env_name }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Request-ID $request_id;
+        
+        # Proxy timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout {{ api_timeout }};
+        proxy_read_timeout {{ proxy_timeout }};
+        
+        # Proxy buffering
+        proxy_buffering on;
+        proxy_buffer_size 64k;
+        proxy_buffers 16 64k;
+        proxy_busy_buffers_size 128k;
+        
+        {% if enable_api_cache %}
+        # Caching for GET requests (Production)
+        proxy_cache api_cache;
+        proxy_cache_valid 200 {{ api_cache_time }};
+        proxy_cache_valid 404 {{ error_cache_time }};
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_lock on;
+        proxy_cache_background_update on;
+        
+        # Cache headers
+        add_header X-Cache-Status $upstream_cache_status;
+        
+        # Don't cache POST, PUT, DELETE, PATCH
+        proxy_cache_methods GET HEAD;
+        {% else %}
+        # No caching for staging/development
+        add_header Cache-Control "no-cache, no-store, must-revalidate";
+        {% endif %}
+    }
+    
+    # Health check endpoint
+    location /health {
+        access_log off;
+        proxy_pass http://backend_{{ env_name }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Quick health check timeouts
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 5s; 
+        proxy_read_timeout 5s;
+    }
+    
+    # Metrics endpoint (if available)
+    location /metrics {
+        {% if env_name == 'production' %}
+        # Restrict access to metrics in production
+        allow 10.0.0.0/8;
+        allow 172.16.0.0/12;
+        allow 192.168.0.0/16;
+        deny all;
+        {% endif %}
+        
+        access_log off;
+        proxy_pass http://backend_{{ env_name }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    
+    # Deny access to sensitive files
+    location ~ /\.(ht|env|git) {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+    
+    # Deny access to common exploit patterns
+    location ~ (wp-|wordpress|admin|phpmyadmin) {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+}

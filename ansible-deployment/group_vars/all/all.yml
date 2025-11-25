@@ -1,0 +1,134 @@
+---
+# Common variables for all environments with dynamic Nginx configuration
+app_name: "rea-interactive-bible-BE"
+app_user: "ubuntu"
+ansible_user: "ubuntu"
+domain_name: "seisho.emerj.net"
+email: "ceo@seisho.emerj.net"
+app_directory: "/home/{{ ansible_user }}/{{ app_name }}"
+repository_url: "git@github.com:okekolawolesunday009/devops-stage-4.git"
+
+# System settings
+nodejs_version: "18"
+nginx_sites_enabled: "/etc/nginx/sites-enabled"
+nginx_sites_available: "/etc/nginx/sites-available"
+
+# Dynamic Domain Configuration
+frontend_domain: "{{ 'seisho.emerj.net' if env_name == 'production' else 'staging.seisho.emerj.net' }}"
+backend_domain: "{{ 'api.seisho.emerj.net' if env_name == 'production' else 'api.staging.seisho.emerj.net' }}"
+
+# Dynamic Port Configuration
+frontend_port: "{{ '3001' if env_name == 'production' else '3000' }}"
+backend_port: "{{ app_port }}"
+
+# Nginx Dynamic Configuration
+nginx_worker_processes: "auto"
+nginx_worker_connections: "{{ '2048' if env_name == 'production' else '1024' }}"
+nginx_keepalive_timeout: "75"
+client_max_body_size: "{{ '500M' if env_name == 'production' else '100M' }}"
+client_body_timeout: "60s"
+client_header_timeout: "60s"
+
+# Dynamic Logging Configuration
+nginx_log_dir: "/var/log/nginx"
+nginx_access_log: "{{ nginx_log_dir }}/{{ env_name }}-{{ app_name }}-access.log"
+nginx_error_log: "{{ nginx_log_dir }}/{{ env_name }}-{{ app_name }}-error.log"
+app_log_dir: "/var/log/{{ app_name }}"
+log_level: "{{ 'error' if env_name == 'production' else 'debug' }}"
+log_format_type: "{{ 'json' if env_name == 'production' else 'main' }}"
+
+# SSL Dynamic Configuration
+certbot_email: "{{ email }}"
+ssl_cert_path: "/etc/letsencrypt/live/{{ frontend_domain }}/fullchain.pem"
+ssl_key_path: "/etc/letsencrypt/live/{{ frontend_domain }}/privkey.pem"
+ssl_dhparam_path: "/etc/nginx/dhparam.pem"
+ssl_protocols: "TLSv1.2 TLSv1.3"
+ssl_ciphers: "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-SHA256:ECDHE-RSA-AES256-SHA384"
+ssl_prefer_server_ciphers: "off"
+ssl_session_cache_size: "10m"
+ssl_session_timeout: "10m"
+ssl_session_tickets: "off"
+ssl_stapling: "on"
+ssl_stapling_verify: "on"
+
+# SSL Renewal Configuration
+ssl_renewal_minute: "0"
+ssl_renewal_hour: "12"
+ssl_renewal_day: "*"
+
+# Security Headers Configuration
+x_frame_options: "SAMEORIGIN"
+hsts_max_age: "31536000"
+referrer_policy: "no-referrer-when-downgrade"
+
+# Rate Limiting (Environment-specific)
+api_rate_limit: "{{ '10r/s' if env_name == 'production' else '100r/s' }}"
+auth_rate_limit: "{{ '3r/m' if env_name == 'production' else '10r/m' }}"
+global_rate_limit: "{{ '100r/s' if env_name == 'production' else '1000r/s' }}"
+api_burst: "{{ '20' if env_name == 'production' else '50' }}"
+auth_burst: "{{ '5' if env_name == 'production' else '10' }}"
+global_burst: "{{ '50' if env_name == 'production' else '100' }}"
+
+# Caching Configuration
+enable_api_cache: "{{ true if env_name == 'production' else false }}"
+cache_zone_size: "{{ '50m' if env_name == 'production' else '10m' }}"
+cache_max_size: "{{ '5g' if env_name == 'production' else '1g' }}"
+cache_inactive_time: "{{ '120m' if env_name == 'production' else '60m' }}"
+api_cache_time: "{{ '10m' if env_name == 'production' else '1m' }}"
+error_cache_time: "{{ '5m' if env_name == 'production' else '1m' }}"
+static_cache_time: "{{ '1y' if env_name == 'production' else '30d' }}"
+
+# Timeout Configuration
+proxy_timeout: "{{ '600s' if env_name == 'production' else '300s' }}"
+api_timeout: "{{ '120s' if env_name == 'production' else '60s' }}"
+
+# CORS Configuration
+cors_origin: "{{ 'https://' + frontend_domain }}"
+
+# Gzip Configuration
+gzip_compression_level: "{{ '9' if env_name == 'production' else '6' }}"
+
+# DNS Resolver
+dns_resolver: "8.8.8.8 8.8.4.4"
+
+# Log Rotation Configuration
+log_retention_days: "{{ '90' if env_name == 'production' else '30' }}"
+nginx_log_retention_days: "{{ '365' if env_name == 'production' else '52' }}"
+error_log_retention_days: "{{ '30' if env_name == 'production' else '14' }}"
+log_rotation_size: "{{ '500M' if env_name == 'production' else '100M' }}"
+nginx_log_rotation_size: "{{ '1G' if env_name == 'production' else '500M' }}"
+error_log_rotation_size: "{{ '100M' if env_name == 'production' else '50M' }}"
+log_rotation_notify: "{{ true if env_name == 'production' else false }}"
+
+# Feature Flags
+enable_api_docs: "{{ false if env_name == 'production' else true }}"
+debug_enabled: "{{ false if env_name == 'production' else true }}"
+
+# MongoDB settings
+mongodb_port: 27017
+mongodb_bind_ip: "127.0.0.1"
+mongodb_data_dir: "/var/lib/mongodb"
+mongodb_log_dir: "/var/log/mongodb"
+
+# PostgreSQL settings  
+postgresql_version: "14"
+postgresql_port: 5432
+postgresql_bind_ip: "127.0.0.1"
+
+# Redis settings
+redis_port: 6379
+redis_bind_ip: "127.0.0.1"
+
+# Application settings
+app_port: 3600
+
+# CloudWatch settings
+cloudwatch_log_group: "/aws/ec2/{{ app_name }}"
+cloudwatch_region: "us-west-2"
+
+# SSL settings
+ssl_cert_path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+ssl_key_path: "/etc/letsencrypt/live/{{ domain_name }}/privkey.pem"
+
+# Application logs
+app_log_dir: "/var/log/{{ app_name }}"

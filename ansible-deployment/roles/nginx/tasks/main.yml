@@ -1,0 +1,272 @@
+---
+# Advanced Nginx Configuration with SSL Automation and Dynamic Templates
+# Provides comprehensive reverse proxy setup with SSL/TLS automation via Certbot
+
+- name: Install required packages for Nginx and SSL
+  apt:
+    name:
+      - nginx
+      - snapd
+      - python3-certbot-nginx
+    state: present
+    update_cache: yes
+  tags:
+    - nginx
+    - ssl
+    - install
+
+- name: Ensure snapd is running
+  systemd:
+    name: snapd
+    state: started
+    enabled: yes
+  tags:
+    - ssl
+    - snapd
+
+- name: Install certbot via snap
+  snap:
+    name: certbot
+    classic: yes
+  tags:
+    - ssl
+    - certbot
+
+- name: Create certbot symlink
+  file:
+    src: /snap/bin/certbot
+    dest: /usr/bin/certbot
+    state: link
+  tags:
+    - ssl
+    - certbot
+
+- name: Remove default Nginx configuration
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Create Nginx log directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: www-data
+    group: adm
+    mode: '0755'
+  loop:
+    - "{{ nginx_log_dir }}"
+    - "{{ app_log_dir }}"
+  tags:
+    - nginx
+    - logs
+
+- name: Generate DH parameters for SSL
+  openssl_dhparam:
+    path: "{{ ssl_dhparam_path }}"
+    size: 2048
+  tags:
+    - ssl
+    - security
+
+- name: Create dynamic Nginx main configuration
+  template:
+    src: nginx-main.conf.j2
+    dest: /etc/nginx/nginx.conf
+    backup: yes
+    mode: '0644'
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Create dynamic site configuration for backend API
+  template:
+    src: site-config.conf.j2
+    dest: "/etc/nginx/sites-available/{{ app_name }}-{{ env_name }}"
+    mode: '0644'
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Enable Nginx site for backend API
+  file:
+    src: "/etc/nginx/sites-available/{{ app_name }}-{{ env_name }}"
+    dest: "/etc/nginx/sites-enabled/{{ app_name }}-{{ env_name }}"
+    state: link
+  notify:
+    - restart nginx
+  tags:
+    - nginx
+    - config
+
+- name: Test initial Nginx configuration
+  command: nginx -t
+  register: nginx_test_initial
+  changed_when: false
+  tags:
+    - nginx
+    - test
+
+- name: Start and enable Nginx service
+  systemd:
+    name: nginx
+    state: started
+    enabled: yes
+  tags:
+    - nginx
+    - service
+
+- name: Check if SSL certificate already exists
+  stat:
+    path: "{{ ssl_cert_path }}"
+  register: ssl_cert_exists
+  tags:
+    - ssl
+    - check
+
+- name: Generate SSL certificate with Certbot (combined domains)
+  command: >
+    certbot --nginx 
+    -d {{ frontend_domain }} 
+    {% if backend_domain != frontend_domain %}-d {{ backend_domain }}{% endif %}
+    --non-interactive --agree-tos --email {{ certbot_email }}
+    --redirect --expand
+  when: not ssl_cert_exists.stat.exists
+  register: certbot_combined
+  tags:
+    - ssl
+    - certbot
+
+- name: Generate SSL certificate for frontend domain only (fallback)
+  command: >
+    certbot --nginx -d {{ frontend_domain }}
+    --non-interactive --agree-tos --email {{ certbot_email }}
+    --redirect
+  when: certbot_combined is failed and not ssl_cert_exists.stat.exists
+  register: certbot_frontend_fallback
+  ignore_errors: yes
+  tags:
+    - ssl
+    - certbot
+    - fallback
+
+- name: Generate SSL certificate for backend domain only (fallback)
+  command: >
+    certbot --nginx -d {{ backend_domain }}
+    --non-interactive --agree-tos --email {{ certbot_email }}
+    --redirect
+  when: 
+    - certbot_combined is failed 
+    - backend_domain != frontend_domain
+    - not ssl_cert_exists.stat.exists
+  register: certbot_backend_fallback
+  ignore_errors: yes
+  tags:
+    - ssl
+    - certbot
+    - fallback
+
+- name: Set up automatic certificate renewal cron job
+  cron:
+    name: "Certbot automatic renewal"
+    minute: "{{ ssl_renewal_minute }}"
+    hour: "{{ ssl_renewal_hour }}"
+    day: "{{ ssl_renewal_day }}"
+    job: "/usr/bin/certbot renew --quiet && systemctl reload nginx"
+    user: root
+  tags:
+    - ssl
+    - cron
+    - renewal
+
+- name: Test certificate renewal (dry run)
+  command: certbot renew --dry-run
+  register: certbot_dry_run
+  changed_when: false
+  tags:
+    - ssl
+    - test
+    - renewal
+
+- name: Configure Nginx log rotation
+  template:
+    src: logrotate.j2
+    dest: "/etc/logrotate.d/nginx-{{ app_name }}"
+    mode: '0644'
+  tags:
+    - nginx
+    - logs
+    - rotation
+
+- name: Final Nginx configuration test
+  command: nginx -t
+  register: nginx_test_final
+  changed_when: false
+  tags:
+    - nginx
+    - test
+    - final
+
+- name: Reload Nginx to apply SSL configuration
+  systemd:
+    name: nginx
+    state: reloaded
+  when: >
+    certbot_combined is changed or 
+    certbot_frontend_fallback is changed or 
+    certbot_backend_fallback is changed
+  tags:
+    - nginx
+    - ssl
+    - reload
+
+- name: Configure firewall for HTTP and HTTPS
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - '80'
+    - '443'
+  when: ansible_facts['os_family'] == "Debian"
+  ignore_errors: yes
+  tags:
+    - nginx
+    - firewall
+    - ssl
+
+- name: Display SSL certificate information
+  debug:
+    msg: |
+      ========================================
+      SSL Certificate Configuration Complete
+      ========================================
+      Environment: {{ env_name }}
+      Frontend Domain: {{ frontend_domain }}
+      Backend Domain: {{ backend_domain }}
+      Certificate Path: {{ ssl_cert_path }}
+      
+      SSL Features:
+      ✅ HTTPS Redirection: Enabled
+      ✅ Security Headers: Configured
+      ✅ TLS 1.2/1.3 Only: Enforced
+      ✅ Auto Renewal: {{ ssl_renewal_hour }}:{{ ssl_renewal_minute }} daily
+      
+      Deployment Type: 
+      {% if backend_domain == frontend_domain %}
+      🔗 Single domain SSL ({{ frontend_domain }})
+      {% else %}
+      🔗 Multi-domain SSL ({{ frontend_domain }}, {{ backend_domain }})
+      {% endif %}
+      ========================================
+  tags:
+    - ssl
+    - info

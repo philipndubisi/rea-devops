@@ -1,0 +1,181 @@
+---
+# REA DevOps Deployment Playbook with Dynamic Nginx SSL Configuration
+# Supports staging and production environments with automated SSL management
+# Usage: ansible-playbook -i inventory deploy.yml --extra-vars "env_name=staging"
+
+- name: Deploy REA Interactive Bible Backend with Nginx SSL Automation
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  vars:
+    # Default environment (override with --extra-vars "env_name=production")
+    env_name: "{{ env_name | default('staging') }}"
+    
+  pre_tasks:
+    - name: Validate environment name
+      assert:
+        that:
+          - env_name in ['staging', 'production']
+        fail_msg: "env_name must be either 'staging' or 'production'"
+        success_msg: "Deploying to {{ env_name }} environment"
+      tags: always
+    
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags: always
+    
+    - name: Install required system packages
+      apt:
+        name:
+          - curl
+          - wget
+          - git
+          - htop
+          - unzip
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - lsb-release
+        state: present
+      tags: always
+
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          ========================================
+          REA DevOps Deployment Configuration
+          ========================================
+          Environment: {{ env_name }}
+          Application: {{ app_name }}
+          Frontend Domain: {{ frontend_domain }}
+          Backend Domain: {{ backend_domain }}
+          Frontend Port: {{ frontend_port }}
+          Backend Port: {{ backend_port }}
+          SSL Cert Path: {{ ssl_cert_path }}
+          Log Level: {{ log_level }}
+          ========================================
+      tags: always
+
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        shell: /bin/bash
+        home: "/home/{{ app_user }}"
+        create_home: yes
+        groups: sudo
+        append: yes
+      tags: user
+
+    - name: Create application directory
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: '0755'
+      tags: directory
+
+  roles:
+    - role: nginx
+      tags: 
+        - nginx
+        - ssl
+        - reverse-proxy
+        
+    - role: mongodb
+      tags: 
+        - mongodb
+        - database
+      when: mongodb_credentials is defined
+        
+    - role: postgresql
+      tags: 
+        - postgresql  
+        - database
+      when: postgresql_credentials is defined
+        
+    - role: redis
+      tags: 
+        - redis
+        - cache
+      when: redis_port is defined
+
+  post_tasks:
+    - name: Verify Nginx is running and accessible
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}"
+        method: GET
+        status_code: [200, 301, 302]
+      register: nginx_health_check
+      ignore_errors: yes
+      tags: verify
+    
+    - name: Verify SSL certificate installation
+      uri:
+        url: "https://{{ frontend_domain }}/health"
+        method: GET
+        status_code: [200, 404]
+        validate_certs: yes
+      register: ssl_health_check
+      ignore_errors: yes
+      when: ssl_cert_path is defined
+      tags: 
+        - verify
+        - ssl
+    
+    - name: Display deployment summary
+      debug:
+        msg: |
+          ========================================
+          Deployment Summary - {{ env_name }}
+          ========================================
+          {% if nginx_health_check.status is defined %}
+          ✅ Nginx Status: {{ nginx_health_check.status }}
+          {% else %}
+          ❌ Nginx Status: Failed to connect
+          {% endif %}
+          {% if ssl_health_check.status is defined %}
+          ✅ SSL Status: {{ ssl_health_check.status }}
+          {% else %}
+          ❌ SSL Status: Certificate verification failed
+          {% endif %}
+          
+          🌐 Frontend URL: https://{{ frontend_domain }}
+          🚀 Backend API: https://{{ backend_domain }}/api
+          📊 Health Check: https://{{ backend_domain }}/health
+          {% if enable_api_docs %}
+          📚 API Docs: https://{{ backend_domain }}/api-docs
+          {% endif %}
+          
+          📝 Log Locations:
+          - Nginx Access: {{ nginx_access_log }}
+          - Nginx Error: {{ nginx_error_log }}
+          - Application: {{ app_log_dir }}
+          
+          🔐 SSL Configuration:
+          - Certificate: {{ ssl_cert_path }}
+          - Auto-renewal: ✅ ({{ ssl_renewal_hour }}:{{ ssl_renewal_minute }} daily)
+          
+          ⚡ Performance Settings:
+          - Worker Connections: {{ nginx_worker_connections }}
+          - Rate Limiting: {{ api_rate_limit }} (API), {{ auth_rate_limit }} (Auth)
+          - Caching: {{ 'Enabled' if enable_api_cache else 'Disabled' }}
+          ========================================
+      tags: always
+
+# Handler definitions (global)
+handlers:
+  - name: restart nginx
+    systemd:
+      name: nginx
+      state: restarted
+
+  - name: reload nginx  
+    systemd:
+      name: nginx
+      state: reloaded

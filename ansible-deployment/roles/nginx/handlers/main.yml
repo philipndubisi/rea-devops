@@ -1,0 +1,26 @@
+---
+# Nginx service handlers for configuration changes and SSL updates
+
+- name: restart nginx
+  systemd:
+    name: nginx
+    state: restarted
+  listen: "restart nginx"
+
+- name: reload nginx
+  systemd:
+    name: nginx
+    state: reloaded
+  listen: "reload nginx"
+
+- name: test nginx config
+  command: nginx -t
+  listen: "test nginx config"
+  register: nginx_syntax_check
+  failed_when: nginx_syntax_check.rc != 0
+
+- name: restart nginx after ssl
+  systemd:
+    name: nginx
+    state: restarted
+  listen: "restart nginx after ssl"

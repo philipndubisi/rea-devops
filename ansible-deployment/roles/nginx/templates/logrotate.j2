@@ -1,0 +1,145 @@
+# Dynamic Nginx Log Rotation Configuration for {{ app_name }} - {{ env_name }}
+# Generated: {{ ansible_date_time.iso8601 }}
+
+# Main Nginx access and error logs
+{{ nginx_access_log }} {{ nginx_error_log }} {
+    daily
+    rotate {{ nginx_log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 www-data adm
+    size {{ nginx_log_rotation_size }}
+    
+    {% if env_name == 'production' %}
+    # Production: More frequent rotation, longer retention
+    dateext
+    dateformat -%Y%m%d-%s
+    maxage {{ nginx_log_retention_days }}
+    {% else %}
+    # Staging: Less frequent rotation, shorter retention  
+    maxage {{ nginx_log_retention_days }}
+    {% endif %}
+    
+    postrotate
+        # Send USR1 signal to nginx to reopen log files
+        if [ -f /var/run/nginx.pid ]; then
+            /bin/kill -USR1 $(cat /var/run/nginx.pid) 2>/dev/null || true
+        fi
+        
+        {% if log_rotation_notify and env_name == 'production' %}
+        # Notify log rotation (production only)
+        echo "Nginx logs rotated at $(date)" | logger -t nginx-logrotate
+        {% endif %}
+    endscript
+}
+
+# Frontend-specific logs
+{{ nginx_log_dir }}/{{ env_name }}-frontend-*.log {
+    daily
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 www-data adm
+    size {{ log_rotation_size }}
+    maxage {{ log_retention_days }}
+    
+    {% if env_name == 'production' %}
+    dateext
+    dateformat -%Y%m%d-%s
+    {% endif %}
+    
+    postrotate
+        if [ -f /var/run/nginx.pid ]; then
+            /bin/kill -USR1 $(cat /var/run/nginx.pid) 2>/dev/null || true
+        fi
+    endscript
+}
+
+# Backend-specific logs
+{{ nginx_log_dir }}/{{ env_name }}-backend-*.log {
+    daily
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 www-data adm
+    size {{ log_rotation_size }}
+    maxage {{ log_retention_days }}
+    
+    {% if env_name == 'production' %}
+    dateext
+    dateformat -%Y%m%d-%s
+    {% endif %}
+    
+    postrotate
+        if [ -f /var/run/nginx.pid ]; then
+            /bin/kill -USR1 $(cat /var/run/nginx.pid) 2>/dev/null || true
+        fi
+    endscript
+}
+
+# Application logs (if managed by nginx)
+{{ app_log_dir }}/*.log {
+    {% if env_name == 'production' %}
+    daily
+    {% else %}
+    weekly
+    {% endif %}
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 {{ app_user }} {{ app_user }}
+    size {{ log_rotation_size }}
+    maxage {{ log_retention_days }}
+    
+    {% if env_name == 'production' %}
+    dateext
+    dateformat -%Y%m%d-%s
+    sharedscripts
+    {% endif %}
+    
+    postrotate
+        # Restart application if needed (PM2 handles this automatically)
+        # /usr/bin/pm2 reloadLogs || true
+        
+        {% if log_rotation_notify and env_name == 'production' %}
+        echo "Application logs rotated at $(date)" | logger -t app-logrotate
+        {% endif %}
+    endscript
+}
+
+# Error logs (separate rotation policy for faster cleanup)
+{{ nginx_log_dir }}/*error*.log {{ app_log_dir }}/*error*.log {
+    daily
+    rotate {{ error_log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 www-data adm
+    size {{ error_log_rotation_size }}
+    maxage {{ error_log_retention_days }}
+    
+    {% if env_name == 'production' %}
+    dateext
+    dateformat -%Y%m%d-%s
+    {% endif %}
+    
+    postrotate
+        if [ -f /var/run/nginx.pid ]; then
+            /bin/kill -USR1 $(cat /var/run/nginx.pid) 2>/dev/null || true
+        fi
+        
+        {% if env_name == 'production' %}
+        # Alert on excessive error log size in production
+        find {{ nginx_log_dir }} -name "*error*.log" -size +50M -exec echo "Large error log found: {}" \; | logger -t nginx-error-alert
+        {% endif %}
+    endscript
+}
